@@ -1,9 +1,16 @@
 [Unit]
 Description=iNiR shell (Hyprland)
-# The Hyprland compositor is started by the session (SDDM, greetd, or TTY).
-# We use PartOf=graphical-session.target so iNiR starts after the Wayland session
-# is ready. This avoids starting under KDE/GNOME because those sessions don't
-# set HYPRLAND_INSTANCE_SIGNATURE, so CompositorService won't detect Hyprland.
+# Started by the session bootstrap in ~/.config/hypr/inir/autostart.lua
+# (hyprland.start): it first publishes WAYLAND_DISPLAY, XDG_SESSION_TYPE,
+# XDG_CURRENT_DESKTOP and HYPRLAND_INSTANCE_SIGNATURE into the systemd user
+# manager and the D-Bus activation environment, then starts this service.
+# This is the single authoritative launch path — do NOT wire this unit into
+# compositor wants directories or graphical-session.target.wants: that target
+# refuses manual starts (RefuseManualStart=yes) and is never active on plain
+# Hyprland sessions, and a wants link would also fire under other DEs.
+# Only run inside a real Hyprland session: skips cleanly (no error) when
+# started from another session or a TTY without a Hyprland environment.
+ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
 PartOf=graphical-session.target
 After=graphical-session.target
 Before=xdg-desktop-autostart.target
@@ -14,6 +21,12 @@ StartLimitBurst=3
 [Service]
 Type=dbus
 BusName=org.kde.StatusNotifierWatcher
+
+# Fail fast with an actionable diagnostic instead of Quickshell's
+# "Failed to create wl_display" FATAL crash: the session bootstrap must have
+# published the Wayland environment before this unit starts. A transient
+# failure (compositor restarting) resolves via Restart=on-failure below.
+ExecStartPre=/bin/sh -c 'test -n "$WAYLAND_DISPLAY" || { echo "inir-hyprland: WAYLAND_DISPLAY is not set — Hyprland session environment not imported yet (bootstrap in autostart.lua missing?)"; exit 1; }; test -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" || { echo "inir-hyprland: Wayland socket $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY does not exist — compositor not ready"; exit 1; }'
 
 # Pre-seed stable environment so the bash wrapper skips detection at boot.
 # QT_SCALE_FACTOR must be 1 — shell scaling is handled in QML.
@@ -58,6 +71,8 @@ ExecStopPost=-/usr/bin/inir cleanup-orphans
 # during cold-boot I/O contention (portals, tray apps, etc.)
 IOSchedulingPriority=2
 
-# No [Install] section — wiring is managed by 'inir service enable' which
-# creates a compositor-specific wants link so inir only starts under the
-# correct compositor, not under KDE/GNOME/etc.
+# No [Install] section — this unit is started by the Hyprland session
+# bootstrap in defaults/hypr/inir/autostart.lua (hyprland.start), which
+# publishes the Wayland session environment first. It must not be enabled
+# via wants links: graphical-session.target never activates on plain
+# Hyprland sessions, and a link there would also fire under other DEs.
