@@ -379,100 +379,14 @@ fi
 
 #####################################################################################
 # Validate Hyprland-first package plan (must run before unsetting _all_official)
+# The plan (_all_official) is the source of truth for hard pass/fail. Packages
+# already installed are informational only and never fail installation.
 #####################################################################################
 tui_info "Validating Hyprland-first package plan..."
-
-# Build the effective desired package list: packages in _all_official PLUS
-# packages already installed that satisfy requirements (e.g. custom quickshell)
-# We check against the desired list (_all_official) for required packages.
-# For quickshell specifically, accept any compatible provider.
-_validate_packages=("${_all_official[@]}")
-if $_keep_existing_quickshell; then
-  # quickshell was removed from _all_official, but a compatible provider is kept
-  _validate_packages+=("quickshell-provider-kept")
-fi
-
-# Verify excluded packages are NOT in the final install plan
-EXCLUDED_PACKAGES=(niri niri-focused-booster mission-center xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
-EXCLUDED_FOUND=()
-for pkg in "${EXCLUDED_PACKAGES[@]}"; do
-  if printf '%s\n' "${_all_official[@]}" | grep -qx "$pkg"; then
-    EXCLUDED_FOUND+=("$pkg")
-  fi
-done
-
-if [[ ${#EXCLUDED_FOUND[@]} -gt 0 ]]; then
-  log_error "Excluded packages found in install plan: ${EXCLUDED_FOUND[*]}"
-  return 1
-else
-  log_success "Excluded packages correctly absent: ${EXCLUDED_PACKAGES[*]}"
-fi
-
-# Verify required Hyprland packages ARE effectively satisfied
-# Check: in install plan (_all_official) OR already installed on system
-REQUIRED_HYPRLAND=(hyprland xdg-desktop-portal-hyprland quickshell)
-MISSING_REQUIRED=()
-for pkg in "${REQUIRED_HYPRLAND[@]}"; do
-  if [[ "$pkg" == "quickshell" ]]; then
-    # Quickshell: accept official quickshell OR any compatible provider
-    if printf '%s\n' "${_all_official[@]}" | grep -qx "quickshell"; then
-      : # in install plan
-    elif pacman -Qi quickshell &>/dev/null; then
-      : # official quickshell installed
-    elif pacman -Qi quickshell-git &>/dev/null; then
-      : # quickshell-git installed
-    elif pacman -Qi quickshell-bin &>/dev/null; then
-      : # quickshell-bin installed
-    elif pacman -Qi illogical-impulse-quickshell-git &>/dev/null; then
-      : # illogical-impulse-quickshell-git installed
-    else
-      MISSING_REQUIRED+=("$pkg")
-    fi
-  else
-    # hyprland, xdg-desktop-portal-hyprland: check plan or installed
-    if printf '%s\n' "${_all_official[@]}" | grep -qx "$pkg"; then
-      : # in install plan
-    elif pacman -Qi "$pkg" &>/dev/null; then
-      : # already installed
-    else
-      MISSING_REQUIRED+=("$pkg")
-    fi
-  fi
-done
-
-if [[ ${#MISSING_REQUIRED[@]} -gt 0 ]]; then
-  log_error "Required Hyprland packages missing (not in plan and not installed): ${MISSING_REQUIRED[*]}"
-  return 1
-else
-  log_success "Required Hyprland packages satisfied (in plan or installed): ${REQUIRED_HYPRLAND[*]}"
-fi
-
-# Verify XDG portal backend selection (only hyprland and kde, no gnome/gtk)
-PORTAL_BACKENDS=()
-for pkg in "${_all_official[@]}"; do
-  if [[ "$pkg" == xdg-desktop-portal-* ]]; then
-    PORTAL_BACKENDS+=("$pkg")
-  fi
-done
-# Also check installed portal backends
-for pkg in xdg-desktop-portal-hyprland xdg-desktop-portal-kde xdg-desktop-portal-gnome xdg-desktop-portal-gtk; do
-  if pacman -Qi "$pkg" &>/dev/null; then
-    PORTAL_BACKENDS+=("$pkg (installed)")
-  fi
-done
-log_info "XDG Desktop Portal backends in plan or installed: ${PORTAL_BACKENDS[*]}"
-
-# Ensure no gnome/gtk portal backends in plan OR installed
-for bad_portal in xdg-desktop-portal-gnome xdg-desktop-portal-gtk; do
-  if printf '%s\n' "${_all_official[@]}" | grep -qx "$bad_portal" || pacman -Qi "$bad_portal" &>/dev/null; then
-    log_error "Unwanted portal backend in plan or installed: $bad_portal"
-    return 1
-  fi
-done
-
-log_success "Portal backend selection validated (hyprland + kde only)"
-
-unset PKGBUILD_PACKAGES _all_official _missing_official _repo_installable _keep_existing_quickshell
+source "$runtime_root/sdata/dist-arch/package-plan-validation.sh"
+_arch_plan=("${_all_official[@]}")
+validate_arch_package_plan || return 1
+unset PKGBUILD_PACKAGES _all_official _missing_official _repo_installable _keep_existing_quickshell _arch_plan
 
 #####################################################################################
 # Install AUR packages (only those not in official repos)

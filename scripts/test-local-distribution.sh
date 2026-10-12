@@ -940,6 +940,17 @@ if grep -Fq 'pacman -S $installflags "${_all_official[@]}"' "$arch_installer"; t
     printf 'FAIL: Arch installer can still reinstall or downgrade satisfied dependencies\n' >&2
     exit 1
 fi
+# Regression tests for the Hyprland-first package plan validation logic.
+# Uses mocks; does not touch real system state or invoke pacman.
+arch_plan_test="$runtime_root/scripts/test-arch-package-plan.sh"
+if [[ ! -f "$arch_plan_test" ]]; then
+    printf 'FAIL: missing scripts/test-arch-package-plan.sh\n' >&2
+    exit 1
+fi
+if ! bash "$arch_plan_test"; then
+    printf 'FAIL: Arch package-plan validation regression tests failed\n' >&2
+    exit 1
+fi
 if ! grep -Fq 'OS_SPECIFIC_ID:-}" == "cachyos"' "$arch_installer" \
         || ! grep -Fq 'pacman -Si hyprland' "$arch_installer" \
         || ! (grep -Fq 'OFFICIAL_PACKAGES+=(hyprland)' "$arch_installer" || grep -Fq '"hyprland"' "$arch_installer"); then
