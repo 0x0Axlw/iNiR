@@ -120,6 +120,42 @@ existing config is preserved, matching the Niri contract. The Qt platform
 theme line is reconciled with plasma-integration detection exactly like the
 Niri block. New option: `--skip-hypr`.
 
+## Session startup (shell auto-init)
+
+The single authoritative iNiR launch path under Hyprland:
+
+1. `defaults/hypr/inir/autostart.lua` registers a `hyprland.start` bootstrap
+   that publishes the full session environment — `WAYLAND_DISPLAY`,
+   `XDG_SESSION_TYPE`, `XDG_CURRENT_DESKTOP`, `DISPLAY`,
+   `HYPRLAND_INSTANCE_SIGNATURE`, `XDG_MENU_PREFIX` — into the systemd user
+   manager **and** the D-Bus activation environment
+   (`dbus-update-activation-environment --systemd`, with a
+   `systemctl --user import-environment` fallback), then clears any
+   failed/rate-limited state and starts `inir-hyprland.service`.
+2. `assets/systemd/inir-hyprland.service` is deployed by
+   `3.files.sh` with the launcher path resolved. Guards make every start
+   context outside the bootstrap safe:
+   - `ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE` — skipped cleanly
+     under other compositors/TTYs (no error, no crash loop).
+   - `ExecStartPre` fails fast with an actionable diagnostic when
+     `WAYLAND_DISPLAY` is missing or the Wayland socket does not exist —
+     instead of Quickshell's `Failed to create wl_display` FATAL crash.
+3. There are deliberately **no** wants links for this unit:
+   `graphical-session.target` has `RefuseManualStart=yes` and is never
+   active on a plain (non-UWSM) Hyprland session, so wiring could never
+   launch the shell — and under another compositor with a stale
+   `HYPRLAND_INSTANCE_SIGNATURE` it could start a duplicate. The bootstrap
+   runs only inside Hyprland and systemd guarantees a single service
+   instance, so config reloads and repeated logins cannot spawn duplicate
+   shells. Logout ends the compositor; the service then fails its guard
+   (bounded by the existing 3-in-30s rate limit) and the next login's
+   bootstrap starts it fresh.
+
+Regression coverage: `scripts/test-hyprland-session-startup.sh` (30 checks —
+bootstrap contract, mocked end-to-end ordering, real `ExecStartPre` guard
+behavior, installer deployment, stale-link cleanup), wired into
+`scripts/test-local-distribution.sh` as the "hyprland session startup" step.
+
 ## Remaining work (next phases)
 
 - **Shell adapters**: `services/HyprlandService.qml` equivalents of
@@ -131,9 +167,10 @@ Niri block. New option: `--skip-hypr`.
   `decoration.blur.enabled` the equivalent way. Until then, layer blur for iRiS
   surfaces (`inir/layer_rules.lua`) stays commented so it is never applied
   unconditionally.
-- **Session wiring**: `inir.service` is ordered against `niri.service`; a
-  Hyprland session needs its own supervisor wiring before the shell starts
-  under Hyprland.
+- **`inir service enable` CLI** is still Niri-scoped
+  (`detect_compositor_service` in `scripts/inir` returns only
+  `niri.service`); under Hyprland the install flow wires everything and the
+  bootstrap owns startup, so the CLI is not on the auto-init path.
 - **Live session test** on a real Hyprland session (bindings dispatchers,
   scrolling layout messages, Steam toast anchoring, layer stacking).
 

@@ -973,6 +973,19 @@ if grep -Fq 'OFFICIAL_PACKAGES+=(niri)' "$arch_installer"; then
     exit 1
 fi
 
+# Hyprland session startup path: bootstrap environment publication, service
+# guards, single authoritative launch, installer deployment. Uses mocks for
+# systemctl/dbus-update-activation-environment — no real session state touched.
+step "hyprland session startup"
+if [[ ! -f "$runtime_root/scripts/test-hyprland-session-startup.sh" ]]; then
+    printf 'FAIL: missing scripts/test-hyprland-session-startup.sh\n' >&2
+    exit 1
+fi
+if ! bash "$runtime_root/scripts/test-hyprland-session-startup.sh"; then
+    printf 'FAIL: Hyprland session startup regression tests failed\n' >&2
+    exit 1
+fi
+
 fedora_installer="$runtime_root/sdata/dist-fedora/install-deps.sh"
 if ! grep -Fq 'fedora_quickshell_compatible' "$fedora_installer" \
         || ! grep -Fq 'FEDORA_REPO_PKGS=' "$fedora_installer" \
