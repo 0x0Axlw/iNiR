@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import qs.services
 
 Singleton {
     id: root
@@ -16,6 +17,13 @@ Singleton {
     readonly property string niriSocket: Quickshell.env("NIRI_SOCKET")
 
     property var sortedToplevels: []
+    // Hyprland-specific data (exposed via HyprlandService)
+    readonly property var windows: isHyprland ? HyprlandService.toplevels : (isNiri ? NiriService.windows : [])
+    readonly property var workspaces: isHyprland ? HyprlandService.workspaces : (isNiri ? NiriService.allWorkspaces : [])
+    readonly property var outputs: isHyprland ? HyprlandService.monitors : (isNiri ? NiriService.outputs : {})
+    readonly property var activeWindow: isHyprland ? HyprlandService.activeWindow : (isNiri ? NiriService.activeWindow : null)
+    readonly property int focusedWorkspaceId: isHyprland ? HyprlandService.focusedWorkspaceId : (isNiri ? NiriService.focusedWorkspaceIndex : -1)
+    readonly property var displayScales: isHyprland ? HyprlandService.displayScales : (isNiri ? NiriService.displayScales : {})
 
     property var _sortingConsumers: ({})
     property int _sortingConsumersCount: 0
@@ -318,7 +326,7 @@ Singleton {
         if (isNiri)
             return NiriService.filterCurrentWorkspace(toplevels, screen)
         if (isHyprland)
-            return filterHyprlandCurrentWorkspaceSafe(toplevels, screen)
+            return HyprlandService.filterCurrentWorkspace(toplevels, screen)
         return toplevels
     }
 

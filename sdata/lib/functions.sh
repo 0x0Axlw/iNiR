@@ -1012,6 +1012,7 @@ reconcile_inir_supervisor() {
   local xembed_run_file="${xembed_service_dir}/run"
   local startup_target="${XDG_CONFIG_HOME:-$HOME/.config}/niri/config.d/50-startup.kdl"
   [[ -f "$startup_target" ]] || startup_target="${XDG_CONFIG_HOME:-$HOME/.config}/niri/config.kdl"
+  local hypr_startup_target="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua"
 
   local supervisor
   supervisor="$(inir_supervisor)"
