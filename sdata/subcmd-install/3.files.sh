@@ -387,27 +387,42 @@ case "${SKIP_HYPR}" in
         local hypr_service_asset="${REPO_ROOT}/assets/systemd/inir-hyprland.service"
         local hypr_service_target="${XDG_CONFIG_HOME}/systemd/user/inir-hyprland.service"
         local hypr_service_dir="${XDG_CONFIG_HOME}/systemd/user"
-        
+
         if [[ -f "$hypr_service_asset" ]]; then
           mkdir -p "$hypr_service_dir"
-          
+
           if inir_user_service_is_masked; then
             systemctl --user unmask inir-hyprland.service >/dev/null 2>&1 || true
             systemctl --user unmask --runtime inir-hyprland.service >/dev/null 2>&1 || true
             rm -f "$hypr_service_target"
           fi
 
-          if sync_user_inir_service_from_repo_if_present; then
-            log_success "User inir-hyprland.service refreshed"
+          # Deploy the unit with the launcher path resolved (same contract as
+          # inir.service). The service is started by the Hyprland session
+          # bootstrap in defaults/hypr/inir/autostart.lua, which publishes the
+          # Wayland session environment first — NOT by graphical-session.target
+          # (RefuseManualStart=yes; never active on plain Hyprland sessions).
+          local hypr_launcher="${XDG_BIN_HOME:-$HOME/.local/bin}/inir"
+          local hypr_tmp="${XDG_CACHE_HOME:-$HOME/.cache}/inir-hyprland.service.$$"
+          sed -e "s|^ExecStart=.*|ExecStart=${hypr_launcher//&/\\&} run --session|" \
+              -e "s|^ExecStopPost=-.*|ExecStopPost=-${hypr_launcher//&/\\&} cleanup-orphans|" \
+              "$hypr_service_asset" > "$hypr_tmp"
+          if [[ ! -f "$hypr_service_target" ]] || ! cmp -s "$hypr_tmp" "$hypr_service_target"; then
+            cp -f "$hypr_tmp" "$hypr_service_target"
+            log_success "User inir-hyprland.service installed"
+          else
+            log_success "User inir-hyprland.service current"
           fi
+          rm -f "$hypr_tmp"
         fi
 
         if [[ -f "$hypr_service_target" ]]; then
           if ensure_user_inir_service_enabled; then
-            log_success "User inir-hyprland.service enabled (wired to graphical-session.target)"
+            log_success "User inir-hyprland.service ready (launched by the Hyprland session bootstrap)"
           else
-            log_warning "Could not wire inir-hyprland.service — run 'inir service enable'"
+            log_warning "Could not finalize inir-hyprland.service — re-run ./setup install to repair"
           fi
+          has_usable_systemd_user_manager && systemctl --user daemon-reload >/dev/null 2>&1 || true
         fi
       fi
     fi

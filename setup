@@ -358,35 +358,24 @@ ensure_user_inir_service_enabled() {
     fi
 
     # Handle inir-hyprland.service (Hyprland)
-    local hypr_service_path="${XDG_CONFIG_HOME}/systemd/user/inir-hyprland.service"
-    if [[ "$installed_strategy" == "package-manager" ]]; then
-        systemctl --user daemon-reload >/dev/null 2>&1 || true
-        hypr_service_path="$(systemctl --user show -p FragmentPath --value inir-hyprland.service 2>/dev/null || true)"
-    fi
-
-    if [[ -f "$hypr_service_path" ]] && ! inir_user_service_is_masked; then
-        # Hyprland service uses graphical-session.target
-        local systemd_user_dir="${XDG_CONFIG_HOME}/systemd/user"
-        local correct_wants_dir="${systemd_user_dir}/graphical-session.target.wants"
-        local wants_dir link
-        for wants_dir in "$systemd_user_dir"/*.wants; do
-            [[ -d "$wants_dir" ]] || continue
-            link="$wants_dir/inir-hyprland.service"
-            [[ -e "$link" || -L "$link" ]] || continue
-            [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]] && continue
-            rm -f "$link" || return 1
-            INIR_SERVICE_WIRING_CHANGED=1
-        done
-        mkdir -p "$correct_wants_dir" || return 1
-        link="$correct_wants_dir/inir-hyprland.service"
-        local service_real link_real
-        service_real="$(readlink -f "$hypr_service_path" 2>/dev/null || printf '%s' "$hypr_service_path")"
-        link_real="$(readlink -f "$link" 2>/dev/null || true)"
-        if [[ ! -L "$link" || "$link_real" != "$service_real" ]]; then
-            ln -sf "$hypr_service_path" "$link" || return 1
-            INIR_SERVICE_WIRING_CHANGED=1
-        fi
-    fi
+    # The Hyprland service is started by the session bootstrap in
+    # defaults/hypr/inir/autostart.lua (hyprland.start), which publishes the
+    # Wayland session environment before starting it. graphical-session.target
+    # refuses manual starts (RefuseManualStart=yes) and is never active on
+    # plain Hyprland sessions, so a wants link there can never launch the
+    # shell — and under another compositor with a stale
+    # HYPRLAND_INSTANCE_SIGNATURE it could start a duplicate shell. Remove any
+    # wants links left by earlier versions; the bootstrap is the single
+    # authoritative launch path.
+    local systemd_user_dir="${XDG_CONFIG_HOME}/systemd/user"
+    local wants_dir link
+    for wants_dir in "$systemd_user_dir"/*.wants; do
+        [[ -d "$wants_dir" ]] || continue
+        link="$wants_dir/inir-hyprland.service"
+        [[ -e "$link" || -L "$link" ]] || continue
+        rm -f "$link" || return 1
+        INIR_SERVICE_WIRING_CHANGED=1
+    done
 
     if [[ "$INIR_SERVICE_WIRING_CHANGED" -gt 0 ]]; then
         systemctl --user daemon-reload >/dev/null 2>&1 || return 1
