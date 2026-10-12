@@ -414,7 +414,7 @@ Singleton {
         if (isNiri)
             return NiriService.powerOffMonitors()
         if (isHyprland)
-            return Hyprland.dispatch("dpms off")
+            return HyprlandService.dispatch("dpms off")
         console.warn("CompositorService: Cannot power off monitors, unknown compositor")
     }
 
@@ -422,7 +422,7 @@ Singleton {
         if (isNiri)
             return NiriService.powerOnMonitors()
         if (isHyprland)
-            return Hyprland.dispatch("dpms on")
+            return HyprlandService.dispatch("dpms on")
         console.warn("CompositorService: Cannot power on monitors, unknown compositor")
     }
 }

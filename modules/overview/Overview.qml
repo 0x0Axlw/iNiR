@@ -1023,7 +1023,7 @@ Scope {
                     if (!root.isTargetOutput)
                         return;
                     const wsNumber = ov.switchWorkspaceIndex;
-                    Hyprland.dispatch(`workspace ${wsNumber}`);
+                    HyprlandService.dispatch(`workspace ${wsNumber}`);
                 }
             }
 
@@ -1320,7 +1320,7 @@ Scope {
                                 if (currentIndex > 0)
                                     NiriService.switchToWorkspaceById(workspaces[currentIndex - 1].id)
                             } else {
-                                Hyprland.dispatch("workspace r-1");
+                                HyprlandService.dispatch("workspace r-1");
                             }
                         }
                     } else if (event.key === Qt.Key_PageDown
@@ -1338,7 +1338,7 @@ Scope {
                                 if (currentIndex >= 0 && currentIndex < workspaces.length - 1)
                                     NiriService.switchToWorkspaceById(workspaces[currentIndex + 1].id)
                             } else {
-                                Hyprland.dispatch("workspace r+1");
+                                HyprlandService.dispatch("workspace r+1");
                             }
                         }
                     } else if (root.orbitMode && (root.orbitOptions.keyboardNavigation ?? true)

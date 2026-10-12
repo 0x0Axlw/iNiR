@@ -329,7 +329,7 @@ Item {
         
         onPressed: (event) => {
             if (event.button === Qt.BackButton && CompositorService.isHyprland) {
-                Hyprland.dispatch(`togglespecialworkspace`);
+                HyprlandService.dispatch(`togglespecialworkspace`);
             }
         }
         
@@ -394,7 +394,7 @@ Item {
                     }
                 }
             } else if (CompositorService.isHyprland) {
-                Hyprland.dispatch(direction > 0 ? `workspace r+1` : `workspace r-1`)
+                HyprlandService.dispatch(direction > 0 ? `workspace r+1` : `workspace r-1`)
             }
         }
     }
@@ -523,7 +523,7 @@ Item {
                     if (CompositorService.isNiri) {
                         root.switchToSlot(workspaceValue)
                     } else if (CompositorService.isHyprland) {
-                        Hyprland.dispatch(`workspace ${workspaceValue}`)
+                        HyprlandService.dispatch(`workspace ${workspaceValue}`)
                     }
                 }
                 width: vertical ? undefined : workspaceButtonWidth

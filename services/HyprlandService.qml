@@ -159,12 +159,44 @@ Singleton {
     // Power management via Hyprland dispatcher
     function powerOffMonitors(): void {
         if (CompositorService.isHyprland)
-            Hyprland.dispatch("dpms off")
+            root.dispatch("dpms off")
     }
 
     function powerOnMonitors(): void {
         if (CompositorService.isHyprland)
-            Hyprland.dispatch("dpms on")
+            root.dispatch("dpms on")
+    }
+
+    // Dispatch compat for Hyprland >= 0.55 (Lua config): IPC dispatch requests
+    // are evaluated as `return hl.dispatch(<request>)`, so the request must be
+    // a Lua expression producing an HL.Dispatcher. Legacy "<name> <args>"
+    // strings from the QML layer are translated here to the equivalent
+    // hl.dsp.* forms — verified against Hyprland 0.56.2 and the shipped
+    // /usr/share/hypr/hyprland.lua example (e.g.
+    // `hyprctl dispatch 'hl.dsp.focus({ workspace = 3 })'` -> ok).
+    // Unknown dispatchers pass through unchanged so failures surface loudly
+    // in the journal instead of being silently mis-mapped.
+    function dispatch(request: string): var {
+        const parts = request.trim().split(/\s+/)
+        const name = parts[0] ?? ""
+        const arg = parts.slice(1).join(" ")
+        switch (name) {
+        case "workspace":
+            if (arg.length === 0)
+                return Hyprland.dispatch(request)
+            // Numeric targets are Lua numbers; selectors like "r+1"/"e-1"
+            // or named workspaces are Lua strings.
+            const literal = /^-?\d+$/.test(arg) ? arg : JSON.stringify(arg)
+            return Hyprland.dispatch(`hl.dsp.focus({ workspace = ${literal} })`)
+        case "togglespecialworkspace":
+            return Hyprland.dispatch(arg.length > 0
+                ? `hl.dsp.workspace.toggle_special(${JSON.stringify(arg)})`
+                : "hl.dsp.workspace.toggle_special()")
+        case "dpms":
+            return Hyprland.dispatch(`hl.dsp.dpms(${JSON.stringify(arg.length > 0 ? arg : "toggle")})`)
+        default:
+            return Hyprland.dispatch(request)
+        }
     }
 
     // Hyprland-specific window filtering for current workspace on a screen

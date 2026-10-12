@@ -85,7 +85,7 @@ Item {
         if (CompositorService.isNiri)
             NiriService.switchToWorkspace(key);
         else
-            Hyprland.dispatch("workspace " + key);
+            HyprlandService.dispatch("workspace " + key);
     }
 
     /**

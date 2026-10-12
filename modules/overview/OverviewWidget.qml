@@ -98,9 +98,9 @@ Item {
             root.wheelStepCounter = 0
 
             if (deltaY < 0)
-                Hyprland.dispatch(`workspace r+1`)
+                HyprlandService.dispatch(`workspace r+1`)
             else if (deltaY > 0)
-                Hyprland.dispatch(`workspace r-1`)
+                HyprlandService.dispatch(`workspace r-1`)
         }
     }
 
@@ -211,7 +211,7 @@ Item {
                                     if (root.draggingTargetWorkspace === -1) {
                                         GlobalStates.overviewOpen = false
                                         if (CompositorService.isHyprland)
-                                            Hyprland.dispatch(`workspace ${workspace.workspaceValue}`)
+                                            HyprlandService.dispatch(`workspace ${workspace.workspaceValue}`)
                                     }
                                 }
                             }
@@ -340,7 +340,7 @@ Item {
                         window.Drag.active = false
                         root.draggingFromWorkspace = -1
                         if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
-                            Hyprland.dispatch(`movetoworkspacesilent ${targetWorkspace}, address:${window.windowData?.address}`)
+                            HyprlandService.dispatch(`movetoworkspacesilent ${targetWorkspace}, address:${window.windowData?.address}`)
                             updateWindowPosition.restart()
                         }
                         else {
@@ -350,7 +350,7 @@ Item {
                             }
                             const percentageX = Math.round((window.x - xOffset) / root.workspaceImplicitWidth * 100)
                             const percentageY = Math.round((window.y - yOffset) / root.workspaceImplicitHeight * 100)
-                            Hyprland.dispatch(`movewindowpixel exact ${percentageX}% ${percentageY}%, address:${window.windowData?.address}`)
+                            HyprlandService.dispatch(`movewindowpixel exact ${percentageX}% ${percentageY}%, address:${window.windowData?.address}`)
                         }
                     }
                     onClicked: (event) => {
@@ -358,10 +358,10 @@ Item {
 
                         if (event.button === Qt.LeftButton) {
                             GlobalStates.overviewOpen = false
-                            Hyprland.dispatch(`focuswindow address:${windowData.address}`)
+                            HyprlandService.dispatch(`focuswindow address:${windowData.address}`)
                             event.accepted = true
                         } else if (event.button === Qt.MiddleButton) {
-                            Hyprland.dispatch(`closewindow address:${windowData.address}`)
+                            HyprlandService.dispatch(`closewindow address:${windowData.address}`)
                             event.accepted = true
                         }
                     }
