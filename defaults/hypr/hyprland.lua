@@ -1,0 +1,87 @@
+--[[
+    iNiR — Hyprland compositor configuration (Lua)
+    Entry point: ~/.config/hypr/hyprland.lua
+
+    Ported from iNiR's Niri configuration (defaults/niri/config.kdl + config.d/).
+    Written against the installed Hyprland 0.56.2 Lua API (hyprlang deprecated since 0.55).
+
+    References:
+      Wiki:      https://wiki.hypr.land/Configuring/Start/
+      Example:   /usr/share/hypr/hyprland.lua   (shipped with the installed package)
+      API stubs: /usr/share/hypr/stubs/hl.meta.lua
+      Verified:  `hyprland --verify-config -c ~/.config/hypr/hyprland.lua`
+
+    Modules (require resolves "." and "/" relative to this file):
+      inir/input.lua          — niri 10: input devices, touchpad, cursor
+      inir/general.lua        — niri 20: gaps, borders, scrolling layout
+      inir/decoration.lua     — niri 20/60: rounding, opacity, shadows, animations
+      inir/window_rules.lua   — niri 30: per-app window rules
+      inir/workspace_rules.lua— scaffold (niri ships no active workspace rules)
+      inir/binds.lua          — niri 70: key bindings
+      inir/layer_rules.lua    — niri 80: layer-shell rules for iNiR surfaces
+      inir/monitors.lua       — niri commented outputs → default catch-all
+      inir/autostart.lua      — niri 50: processes spawned at login
+      inir/misc.lua           — Hyprland-native settings mapped from niri equivalents
+
+    Semantic gaps vs. the Niri config are documented in docs/HYPRLAND_PORT.md.
+--]]
+
+-- =============================================================================
+-- ENVIRONMENT VARIABLES (niri 40-environment.kdl)
+-- =============================================================================
+
+-- niri sets XDG_CURRENT_DESKTOP "niri" for its own session; the Hyprland session
+-- must advertise itself as "Hyprland" so xdg-desktop-portal picks
+-- xdg-desktop-portal-hyprland.
+hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
+
+-- Use Plasma's app-menu prefix so kbuildsycoca6 indexes .desktop files
+-- and Dolphin "Open With" menus work correctly.
+hl.env("XDG_MENU_PREFIX", "plasma-")
+
+-- Force Qt apps to use Wayland natively (no XWayland fallback).
+hl.env("QT_QPA_PLATFORM", "wayland")
+
+-- Let Electron apps (Chrome, VS Code, Discord) pick Wayland automatically.
+hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
+
+-- Silence noisy Quickshell D-Bus property logs.
+hl.env("QT_LOGGING_RULES", "quickshell.dbus.properties=false")
+
+-- Qt theming: "kde" reads colors from kdeglobals (requires plasma-integration).
+-- The installer rewrites this to "qt6ct" when plasma-integration is missing.
+hl.env("QT_QPA_PLATFORMTHEME", "kde")
+
+-- Darkly is a modern Qt style that follows kdeglobals color schemes.
+hl.env("QT_STYLE_OVERRIDE", "Darkly")
+
+-- Python venv used by iNiR scripts (color generation, AI features, translations).
+hl.env("INIR_VENV", "$HOME/.local/state/quickshell/.venv")
+hl.env("ILLOGICAL_IMPULSE_VIRTUAL_ENV", "$HOME/.local/state/quickshell/.venv")
+
+-- Cursor theme & size (niri 10 cursor block: xcursor-theme / xcursor-size).
+-- Hyprland reads these from the environment.
+hl.env("XCURSOR_THEME", "capitaine-cursors-light")
+hl.env("XCURSOR_SIZE", "24")
+
+-- =============================================================================
+-- MODULES
+-- =============================================================================
+-- Each require() is a separate Hyprland scope: an error inside one module does
+-- not stop the others. A require() of a missing module DOES abort the config,
+-- so every file below must exist.
+
+require("inir.input")           -- input, touchpad, cursor behavior, gestures
+require("inir.general")         -- gaps, borders, scrolling layout
+require("inir.decoration")      -- rounding, opacity, shadows, animations
+require("inir.window_rules")    -- window rules
+require("inir.workspace_rules") -- workspace rules (scaffold)
+require("inir.binds")           -- key bindings
+require("inir.layer_rules")     -- layer rules for iNiR surfaces
+require("inir.monitors")        -- monitor defaults
+require("inir.autostart")       -- login processes
+require("inir.misc")            -- misc / binds / xwayland settings
+
+-- User overrides (never touched by updates): create
+-- ~/.config/hypr/custom/overrides.lua for personal configuration.
+pcall(require, "custom.overrides")
