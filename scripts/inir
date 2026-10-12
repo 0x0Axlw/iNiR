@@ -2136,8 +2136,19 @@ inir_session_service() {
     if ! command -v systemctl >/dev/null 2>&1; then
         return 1
     fi
+    if ! systemctl --user cat inir-hyprland.service &>/dev/null; then
+        # Hyprland unit not installed — Niri wiring (if any) owns the shell.
+        if systemctl --user cat inir.service &>/dev/null; then
+            printf 'inir.service\n'
+            return 0
+        fi
+        return 1
+    fi
+    # Inside a Hyprland session the compositor exports its instance
+    # signature; from outside the session (su/SSH) fall back to detecting a
+    # running Hyprland process for this user.
     if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] \
-        && systemctl --user cat inir-hyprland.service &>/dev/null; then
+        || pgrep -u "$(id -u)" -x Hyprland &>/dev/null; then
         printf 'inir-hyprland.service\n'
         return 0
     fi
