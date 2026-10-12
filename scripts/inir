@@ -2932,12 +2932,15 @@ report_inir_service_failure() {
         return 1
     fi
 
-    printf '\n\033[31m── inir.service status ──\033[0m\n' >&2
-    systemctl --user status inir.service --no-pager 2>&1 | sed -n '1,18p' >&2 || true
+    local unit
+    unit="$(inir_session_service 2>/dev/null)" || unit="inir.service"
+
+    printf '\n\033[31m── %s status ──\033[0m\n' "$unit" >&2
+    systemctl --user status "$unit" --no-pager 2>&1 | sed -n '1,18p' >&2 || true
 
     if command -v journalctl >/dev/null 2>&1; then
-        printf '\n\033[31m── recent inir.service logs ──\033[0m\n' >&2
-        journalctl --user-unit inir.service -n "$lines" --no-pager 2>&1 >&2 || true
+        printf '\n\033[31m── recent %s logs ──\033[0m\n' "$unit" >&2
+        journalctl --user-unit "$unit" -n "$lines" --no-pager 2>&1 >&2 || true
     fi
 
     return 0
@@ -2978,14 +2981,20 @@ restart_inir_service_or_fail() {
         exit 1
     fi
 
-    if ! systemctl --user is-active --quiet "$unit" >/dev/null 2>&1; then
-        echo "iNiR service failed to start" >&2
-        report_inir_service_failure
-        exit 1
-    fi
+    # Type=dbus units report "activating" until the bus name is re-acquired
+    # after a restart — poll briefly instead of failing on the first check.
+    local attempt
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        if systemctl --user is-active --quiet "$unit" >/dev/null 2>&1; then
+            [[ -z "$quiet" ]] && printf 'done.\n'
+            return 0
+        fi
+        sleep 0.5
+    done
 
-    [[ -z "$quiet" ]] && printf 'done.\n'
-    return 0
+    echo "iNiR service failed to start" >&2
+    report_inir_service_failure
+    exit 1
 }
 
 install_user_service() {
