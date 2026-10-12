@@ -53,7 +53,7 @@ depends=(
   adwaita-icon-theme
 
   #--- Compositor ---
-  niri
+  hyprland
 
   #--- Core utilities ---
   coreutils
@@ -86,8 +86,8 @@ depends=(
 
   #--- XDG Portals ---
   xdg-desktop-portal
-  xdg-desktop-portal-gtk
-  xdg-desktop-portal-gnome
+  xdg-desktop-portal-hyprland
+  xdg-desktop-portal-kde
 
   #--- Audio stack ---
   pipewire
@@ -120,7 +120,7 @@ depends=(
   polkit
   networkmanager
   gnome-keyring
-  nautilus
+  dolphin
   kitty
   glib2
   starship
@@ -146,7 +146,6 @@ depends=(
   ffmpeg
   awww
   songrec
-  mission-center
   tesseract
   tesseract-data-eng
   tesseract-data-spa

@@ -26,6 +26,46 @@ bash -n \
     "$runtime_root/sdata/subcmd-install/"*.sh \
     "$runtime_root/sdata/migrations/"*.sh
 
+step "hyprland lua config"
+hypr_root="$runtime_root/defaults/hypr"
+if [[ ! -f "$hypr_root/hyprland.lua" ]]; then
+    printf 'FAIL: defaults/hypr/hyprland.lua missing\n' >&2
+    exit 1
+fi
+# Every require("inir.<name>") in the entry must resolve to inir/<name>.lua —
+# a missing module aborts the whole Hyprland config at load time.
+hypr_requires="$(sed 's/--.*//' "$hypr_root/hyprland.lua" \
+            | grep -o 'require("inir\.[a-z_]*")' \
+            | sed 's/require("inir\.//; s/")//' || true)"
+if [[ -z "$hypr_requires" ]]; then
+    printf 'FAIL: hyprland.lua requires no inir.* modules\n' >&2
+    exit 1
+fi
+while read -r hypr_mod; do
+    if [[ ! -f "$hypr_root/inir/$hypr_mod.lua" ]]; then
+        printf 'FAIL: hyprland.lua requires inir.%s but inir/%s.lua does not exist\n' \
+            "$hypr_mod" "$hypr_mod" >&2
+        exit 1
+    fi
+done <<< "$hypr_requires"
+if command -v luac >/dev/null 2>&1; then
+    luac -p "$hypr_root/hyprland.lua" "$hypr_root/inir/"*.lua
+else
+    printf 'SKIP: luac unavailable — skipping Lua syntax check\n'
+fi
+# Deep validation against the installed compositor when present: catches
+# unknown config keys, bad dispatcher args, unknown keysyms and rule props
+# that luac cannot see. Fails if the config does not verify clean.
+if command -v Hyprland >/dev/null 2>&1; then
+    if ! timeout 30 Hyprland --verify-config -c "$hypr_root/hyprland.lua" 2>&1 \
+            | grep -q 'config ok'; then
+        printf 'FAIL: hyprland --verify-config rejected defaults/hypr/hyprland.lua\n' >&2
+        exit 1
+    fi
+else
+    printf 'SKIP: Hyprland binary unavailable — skipping --verify-config\n'
+fi
+
 step "session tray ordering"
 # This check is conditional on the usable systemd user manager predicate (ADR-0002).
 # The service unit is part of the systemd path implementation.
@@ -901,24 +941,24 @@ if grep -Fq 'pacman -S $installflags "${_all_official[@]}"' "$arch_installer"; t
     exit 1
 fi
 if ! grep -Fq 'OS_SPECIFIC_ID:-}" == "cachyos"' "$arch_installer" \
-        || ! grep -Fq 'pacman -Si niri-focused-booster' "$arch_installer" \
-        || ! grep -Fq 'OFFICIAL_PACKAGES+=(niri-focused-booster)' "$arch_installer"; then
-    printf 'FAIL: CachyOS fresh installs no longer provision the Niri DMEM focus booster from configured repos\n' >&2
+        || ! grep -Fq 'pacman -Si hyprland' "$arch_installer" \
+        || ! (grep -Fq 'OFFICIAL_PACKAGES+=(hyprland)' "$arch_installer" || grep -Fq '"hyprland"' "$arch_installer"); then
+    printf 'FAIL: CachyOS fresh installs no longer provision Hyprland from configured repos\n' >&2
     exit 1
 fi
 if ! grep -Fq 'ID="?cachyos"?' "$runtime_root/sdata/lib/dist-determine.sh"; then
     printf 'FAIL: CachyOS detection ignores /etc/os-release ID=cachyos\n' >&2
     exit 1
 fi
-files_installer="$runtime_root/sdata/subcmd-install/3.files.sh"
-if ! grep -Fq 'INSTALL_FIRSTRUN}" == true && "${OS_SPECIFIC_ID:-}" == "cachyos"' "$files_installer" \
-        || ! grep -Fq 'command -v niri-focused-booster >/dev/null 2>&1' "$files_installer" \
-        || ! grep -Fq '[ -r /sys/fs/cgroup/dmem.capacity ] && exec niri-focused-booster' "$files_installer"; then
-    printf 'FAIL: fresh CachyOS installs do not conditionally wire the Niri DMEM focus booster\n' >&2
+# Verify niri-focused-booster is no longer in the install plan (Hyprland-first)
+# Check only OFFICIAL_PACKAGES assignments, not validation arrays
+if grep -E 'OFFICIAL_PACKAGES.*niri-focused-booster' "$arch_installer"; then
+    printf 'FAIL: niri-focused-booster should not be in Hyprland-first install plan\n' >&2
     exit 1
 fi
-if grep -Fq 'niri-focused-booster' "$runtime_root/defaults/niri/config.d/50-startup.kdl"; then
-    printf 'FAIL: generic Niri defaults contain CachyOS-only DMEM integration\n' >&2
+# Verify niri is no longer in the default OFFICIAL_PACKAGES (Hyprland-first)
+if grep -Fq 'OFFICIAL_PACKAGES+=(niri)' "$arch_installer"; then
+    printf 'FAIL: niri should not be in Hyprland-first default OFFICIAL_PACKAGES\n' >&2
     exit 1
 fi
 
@@ -3135,7 +3175,7 @@ if ! grep -Fq 'Install/update Cloudflare WARP' "$runtime_root/setup" \
     printf 'FAIL: setup does not expose/refresh the Void-only WARP extra correctly\n' >&2
     exit 1
 fi
-for pkg in curl wget git ripgrep bc xdg-utils xdg-user-dirs libnotify xwayland-satellite xdg-desktop-portal-gnome gnome-keyring libsecret nautilus kitty kf6-kirigami kdialog breeze-icons qt6ct polkit-gnome power-profiles-daemon qt6-webengine layer-shell-qt; do
+for pkg in curl wget git ripgrep bc xdg-utils xdg-user-dirs libnotify xwayland-satellite xdg-desktop-portal-gnome gnome-keyring libsecret dolphin kitty kf6-kirigami kdialog breeze-icons qt6ct polkit-gnome power-profiles-daemon qt6-webengine layer-shell-qt; do
     if ! grep -Eq "^[[:space:]]+$pkg$" <<< "$void_base_block"; then
         printf 'FAIL: Void base profile is missing required default/runtime provider %s\n' "$pkg" >&2
         exit 1

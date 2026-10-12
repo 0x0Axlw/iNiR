@@ -16,12 +16,12 @@ depends=(
   curl
   fish
   grim
+  hyprland
   jq
   go
   kirigami
   libnotify
   networkmanager
-  niri
   noto-fonts-emoji
   pipewire
   pipewire-alsa
@@ -46,8 +46,8 @@ depends=(
   wireplumber
   wl-clipboard
   xdg-desktop-portal
-  xdg-desktop-portal-gnome
-  xdg-desktop-portal-gtk
+  xdg-desktop-portal-hyprland
+  xdg-desktop-portal-kde
   xdg-user-dirs
   xdg-utils
   xwayland-satellite
@@ -74,13 +74,12 @@ optdepends=(
   'kitty: default terminal integration'
   'kvantum: Qt style engine'
   'libqalculate: calculator widget backend'
-  'mission-center: graphical system monitor (default task manager)'
   'mangohud: live FPS and frametime telemetry for the Game Performance overlay'
   'lib32-mangohud: MangoHud support for 32-bit games'
   'mpv: media playback and YouTube Music support'
   'mpv-mpris: richer mpv media session integration'
   'deno: JavaScript runtime required by current yt-dlp YouTube extraction'
-  'nautilus: default file manager integration'
+  'dolphin: default file manager integration'
   'nm-connection-editor: default network settings GUI'
   'pavucontrol: advanced audio mixer UI'
   'pacman-contrib: package update checking'
@@ -103,6 +102,7 @@ optdepends=(
   'python-ytmusicapi: YouTube Music browsing (InnerTube engine)'
   'python-secretstorage: Chromium browser cookie decryption for YouTube Music account connection'
   'millennium-bin: Steam theming via Millennium (requires steam)'
+  'xdg-desktop-portal-hyprland: Hyprland XDG portal backend'
 )
 conflicts=('inir-shell-git' 'noctalia-qs' 'noctalia-shell' 'cachyos-niri-noctalia')
 source=(

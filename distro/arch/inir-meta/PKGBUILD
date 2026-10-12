@@ -26,6 +26,7 @@ depends=(
   gnome-keyring
   gum
   hyprpicker
+  hyprland
   imagemagick
   inir-shell
   kconfig
@@ -36,7 +37,7 @@ depends=(
   mpv
   mpv-mpris
   deno
-  nautilus
+  dolphin
   otf-space-grotesk
   pacman-contrib
   pavucontrol
@@ -71,6 +72,7 @@ depends=(
   ydotool
   yt-dlp
   yt-dlp-ejs
+  xdg-desktop-portal-hyprland
 )
 optdepends=(
   'millennium-bin: Steam theming via Millennium (requires steam)'

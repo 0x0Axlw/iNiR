@@ -20,7 +20,7 @@ if [[ -n "${ONLY_MISSING_DEPS:-}" ]]; then
   # doctor reports command IDs; map them to Arch package names.
   declare -A cmd_to_pkg=(
     [qs]="quickshell"
-    [niri]="niri"
+    [hyprland]="hyprland"
     [nmcli]="networkmanager"
     [wpctl]="wireplumber"
     [jq]="jq"
@@ -55,7 +55,6 @@ if [[ -n "${ONLY_MISSING_DEPS:-}" ]]; then
     [kirigami]="kirigami"
     [kdialog]="kdialog"
     [millennium]="millennium-bin"
-    [missioncenter]="mission-center"
   )
 
   _miss_installflags="--needed"
@@ -257,13 +256,15 @@ OFFICIAL_PACKAGES=(
   # Quickshell (CRITICAL) - NOW IN EXTRA REPO!
   quickshell
 
+  # Hyprland compositor (CRITICAL)
+  hyprland
+
   # Critical QML/KDE runtime modules (required for shell startup)
   syntax-highlighting
   kirigami
   kdialog
   
   # Already in PKGBUILDs but ensure they're installed
-  niri
   cliphist
   gum
   starship
@@ -274,7 +275,7 @@ OFFICIAL_PACKAGES=(
   noto-fonts-emoji
   
   # File manager
-  nautilus
+  dolphin
   
   # Polkit, for the shell's own authentication dialogs
   polkit
@@ -305,13 +306,9 @@ OFFICIAL_PACKAGES=(
   # Video wallpaper support (thumbnail + SDDM background extraction)
   ffmpeg
 
-  # Prebuilt package that used to be routed through AUR
-  mission-center
+  # XDG Desktop Portals for Hyprland
+  xdg-desktop-portal-hyprland
 )
-
-if [[ "${OS_SPECIFIC_ID:-}" == "cachyos" ]] && pacman -Si niri-focused-booster &>/dev/null; then
-  OFFICIAL_PACKAGES+=(niri-focused-booster)
-fi
 
 # Preserve install-group flags while preferring signed Arch packages wherever
 # possible. These used to be installed through AUR only when their group was on.
@@ -325,6 +322,11 @@ if $INSTALL_FONTS; then
 fi
 if $INSTALL_TOOLKIT; then
   OFFICIAL_PACKAGES+=(uv)
+fi
+
+# CachyOS: ensure Hyprland is available from repos (Hyprland-first)
+if [[ "${OS_SPECIFIC_ID:-}" == "cachyos" ]] && pacman -Si hyprland &>/dev/null; then
+  OFFICIAL_PACKAGES+=(hyprland)
 fi
 
 installflags="--needed"
@@ -578,5 +580,61 @@ if command -v qs >/dev/null 2>&1; then
     unset qs_fix_args
   fi
 fi
+
+#####################################################################################
+# Validate Hyprland-first package plan
+#####################################################################################
+tui_info "Validating Hyprland-first package plan..."
+
+# Verify excluded packages are NOT in the final install plan
+EXCLUDED_PACKAGES=(niri niri-focused-booster mission-center xdg-desktop-portal-gnome xdg-desktop-portal-gtk)
+EXCLUDED_FOUND=()
+for pkg in "${EXCLUDED_PACKAGES[@]}"; do
+  if printf '%s\n' "${_all_official[@]}" | grep -qx "$pkg"; then
+    EXCLUDED_FOUND+=("$pkg")
+  fi
+done
+
+if [[ ${#EXCLUDED_FOUND[@]} -gt 0 ]]; then
+  log_error "Excluded packages found in install plan: ${EXCLUDED_FOUND[*]}"
+  return 1
+else
+  log_success "Excluded packages correctly absent: ${EXCLUDED_PACKAGES[*]}"
+fi
+
+# Verify required Hyprland packages ARE in the install plan
+REQUIRED_HYPRLAND=(hyprland xdg-desktop-portal-hyprland quickshell)
+MISSING_REQUIRED=()
+for pkg in "${REQUIRED_HYPRLAND[@]}"; do
+  if ! printf '%s\n' "${_all_official[@]}" | grep -qx "$pkg"; then
+    MISSING_REQUIRED+=("$pkg")
+  fi
+done
+
+if [[ ${#MISSING_REQUIRED[@]} -gt 0 ]]; then
+  log_error "Required Hyprland packages missing from install plan: ${MISSING_REQUIRED[*]}"
+  return 1
+else
+  log_success "Required Hyprland packages present: ${REQUIRED_HYPRLAND[*]}"
+fi
+
+# Verify XDG portal backend selection (only hyprland and kde, no gnome/gtk)
+PORTAL_BACKENDS=()
+for pkg in "${_all_official[@]}"; do
+  if [[ "$pkg" == xdg-desktop-portal-* ]]; then
+    PORTAL_BACKENDS+=("$pkg")
+  fi
+done
+log_info "XDG Desktop Portal backends in plan: ${PORTAL_BACKENDS[*]}"
+
+# Ensure no gnome/gtk portal backends
+for bad_portal in xdg-desktop-portal-gnome xdg-desktop-portal-gtk; do
+  if printf '%s\n' "${PORTAL_BACKENDS[@]}" | grep -qx "$bad_portal"; then
+    log_error "Unwanted portal backend in plan: $bad_portal"
+    return 1
+  fi
+done
+
+log_success "Portal backend selection validated (hyprland + kde only)"
 
 log_success "Dependencies installed"

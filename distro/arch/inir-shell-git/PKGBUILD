@@ -14,12 +14,12 @@ depends=(
   curl
   fish
   grim
+  hyprland
   jq
   go
   kirigami
   libnotify
   networkmanager
-  niri
   noto-fonts-emoji
   pipewire
   pipewire-alsa
@@ -36,6 +36,7 @@ depends=(
   slurp
   swayidle
   swaylock
+  wlsunset
   syntax-highlighting
   ttf-jetbrains-mono-nerd
   ttf-material-symbols-variable
@@ -43,8 +44,8 @@ depends=(
   wireplumber
   wl-clipboard
   xdg-desktop-portal
-  xdg-desktop-portal-gnome
-  xdg-desktop-portal-gtk
+  xdg-desktop-portal-hyprland
+  xdg-desktop-portal-kde
   xdg-user-dirs
   xdg-utils
   xwayland-satellite
@@ -70,12 +71,11 @@ optdepends=(
   'kitty: default terminal integration'
   'kvantum: Qt style engine'
   'libqalculate: calculator widget backend'
-  'mission-center: graphical system monitor (default task manager)'
   'mangohud: live FPS and frametime telemetry for the Game Performance overlay'
   'lib32-mangohud: MangoHud support for 32-bit games'
   'mpv: media playback and YouTube Music support'
   'mpv-mpris: richer mpv media session integration'
-  'nautilus: default file manager integration'
+  'dolphin: default file manager integration'
   'nm-connection-editor: default network settings GUI'
   'pavucontrol: advanced audio mixer UI'
   'pacman-contrib: package update checking'
@@ -96,6 +96,7 @@ optdepends=(
   'yt-dlp: YouTube media backend'
   'python-ytmusicapi: YouTube Music browsing (InnerTube engine)'
   'millennium-bin: Steam theming via Millennium (requires steam)'
+  'xdg-desktop-portal-hyprland: Hyprland XDG portal backend'
 )
 makedepends=(git)
 install=inir-shell-git.install
