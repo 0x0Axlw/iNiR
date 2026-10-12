@@ -4,6 +4,24 @@
 # shellcheck shell=bash
 
 #####################################################################################
+# Derive repository root from this script's own location
+# Resolve runtime_root so that relative-path invocations (e.g. from
+# sdata/subcmd-install/1.deps-router.sh) still find all repository-relative
+# files such as package-plan-validation.sh and the PKGBUILDs below.
+#####################################################################################
+_INIR_ARCH_SCRIPT_DIR="$(
+    cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &&
+    pwd -P
+)" || return 1
+
+_INIR_ARCH_REPO_ROOT="$(
+    cd -- "${_INIR_ARCH_SCRIPT_DIR}/../.." &&
+    pwd -P
+)" || return 1
+
+runtime_root="${_INIR_ARCH_REPO_ROOT}"
+
+#####################################################################################
 # Verify we're on Arch
 #####################################################################################
 if ! command -v pacman >/dev/null 2>&1; then
