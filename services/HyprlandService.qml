@@ -53,9 +53,12 @@ Singleton {
 
     // React to Hyprland focus/workspace changes
     // Conditional target to avoid connecting on Niri (static analysis guard)
+    // NOTE: Quickshell.Hyprland has no focusedWindow property signal (the
+    // handler warned at runtime and was removed); focus updates also come
+    // from the toplevels/workspaces value-change Connections below.
     Connections {
         target: CompositorService.isHyprland ? Hyprland : null
-        function onFocusedWindowChanged() { root._scheduleFocusUpdate() }
+        function onFocusedMonitorChanged() { root._scheduleFocusUpdate() }
         function onFocusedWorkspaceChanged() { root._scheduleFocusUpdate() }
     }
 
