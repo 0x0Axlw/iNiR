@@ -323,6 +323,98 @@ case "${SKIP_NIRI}" in
     ;;
 esac
 
+# Hyprland config — installed only when Hyprland itself is present, and never
+# over an existing setup: a user's own ~/.config/hypr is preserved on updates
+# (same contract as the Niri config above).
+case "${SKIP_HYPR}" in
+  true) sleep 0;;
+  *)
+    if command -v Hyprland >/dev/null 2>&1; then
+      HYPR_SOURCE="defaults/hypr"
+      HYPR_TARGET="${XDG_CONFIG_HOME}/hypr"
+      HYPR_CONFIG="${HYPR_TARGET}/hyprland.lua"
+
+      if [[ -f "$HYPR_CONFIG" ]]; then
+        log_success "Preserving existing Hyprland config"
+      elif [[ -d "${HYPR_TARGET}" ]]; then
+        # An existing hypr/ dir without hyprland.lua is a manual or legacy
+        # (hyprlang) setup — never sync --delete over it.
+        log_warning "Found ${HYPR_TARGET} without hyprland.lua — preserving (add defaults/hypr manually if wanted)"
+      elif [[ -d "$HYPR_SOURCE" ]]; then
+        # Fresh install: use manifest-tracked sync
+        v mkdir -p "$HYPR_TARGET"
+        
+        # Create backup before update (if this is an update)
+        if [[ "${IS_UPDATE}" == "true" ]]; then
+          log_info "Creating Hyprland config backup before update..."
+          create_update_backup "$HYPR_TARGET" >/dev/null
+        fi
+
+        # Generate manifest BEFORE syncing (to know what should exist)
+        log_info "Generating Hyprland file manifest..."
+        generate_manifest "$HYPR_SOURCE" "${HYPR_TARGET}/.inir-manifest.new" || return 1
+
+        # Sync Hyprland config with manifest tracking
+        install_dir__sync "$HYPR_SOURCE" "$HYPR_TARGET" || return 1
+
+        # Finalize manifest
+        mv "${HYPR_TARGET}/.inir-manifest.new" "${HYPR_TARGET}/.inir-manifest"
+
+        # Cleanup orphan files (files that no longer exist in repo)
+        if [[ "${IS_UPDATE}" == "true" ]]; then
+          log_info "Cleaning up orphan Hyprland config files..."
+          cleanup_orphans "$HYPR_TARGET" "${HYPR_TARGET}/.inir-manifest" || return 1
+        fi
+
+        log_success "Hyprland config installed (defaults)"
+      fi
+
+      # Patch the Qt platform theme in hyprland.lua (same plasma-integration
+      # detection as the Niri block above; no-op when the line is absent).
+      # Only patch if the file exists (fresh install or existing config).
+      if [[ -f "$HYPR_CONFIG" ]]; then
+        if xbps-query -p pkgver plasma-integration >/dev/null 2>&1 ||            pacman -Q plasma-integration &>/dev/null 2>&1 ||            dpkg -l plasma-integration 2>/dev/null | grep -q '^ii' ||            rpm -q plasma-integration &>/dev/null 2>&1; then
+          sed -i 's/hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")/hl.env("QT_QPA_PLATFORMTHEME", "kde")/' "$HYPR_CONFIG"
+          log_success "Hyprland Qt theme: kde (plasma-integration detected)"
+        else
+          sed -i 's/hl.env("QT_QPA_PLATFORMTHEME", "kde")/hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")/' "$HYPR_CONFIG"
+          log_warning "Hyprland Qt theme: qt6ct (plasma-integration not found — install it for proper Qt theming)"
+        fi
+      fi
+
+      # Install Hyprland systemd service (if using systemd supervisor)
+      if [[ "$(inir_supervisor)" == systemd ]]; then
+        local hypr_service_asset="${REPO_ROOT}/assets/systemd/inir-hyprland.service"
+        local hypr_service_target="${XDG_CONFIG_HOME}/systemd/user/inir-hyprland.service"
+        local hypr_service_dir="${XDG_CONFIG_HOME}/systemd/user"
+        
+        if [[ -f "$hypr_service_asset" ]]; then
+          mkdir -p "$hypr_service_dir"
+          
+          if inir_user_service_is_masked; then
+            systemctl --user unmask inir-hyprland.service >/dev/null 2>&1 || true
+            systemctl --user unmask --runtime inir-hyprland.service >/dev/null 2>&1 || true
+            rm -f "$hypr_service_target"
+          fi
+
+          if sync_user_inir_service_from_repo_if_present; then
+            log_success "User inir-hyprland.service refreshed"
+          fi
+        fi
+
+        if [[ -f "$hypr_service_target" ]]; then
+          if ensure_user_inir_service_enabled; then
+            log_success "User inir-hyprland.service enabled (wired to graphical-session.target)"
+          else
+            log_warning "Could not wire inir-hyprland.service — run 'inir service enable'"
+          fi
+        fi
+      fi
+    fi
+    ;;
+esac
+
+
 # Render the startup supervisor and service after the Niri config has been installed.
 source "$REPO_ROOT/sdata/lib/functions.sh" 2>/dev/null || true
 local _selected_supervisor
@@ -501,7 +593,7 @@ elif [[ -f "dots/.config/kdeglobals" ]]; then
   install_file "dots/.config/kdeglobals" "${XDG_CONFIG_HOME}/kdeglobals"
 fi
 
-# Dolphin config — only if dolphin is installed (nautilus is now the default file manager)
+# Dolphin config — Dolphin is the default file manager
 if command -v dolphin &>/dev/null; then
   if [[ -f "defaults/kde/dolphinrc" ]]; then
     install_file "defaults/kde/dolphinrc" "${XDG_CONFIG_HOME}/dolphinrc"
@@ -843,9 +935,9 @@ if [[ -n "$TEXT_EDITOR" ]]; then
     done
 fi
 
-# Detect and set file manager (prefer Nautilus for GTK consistency with Niri)
+# Detect and set file manager (prefer Dolphin for KDE/Qt integration)
 FILE_MANAGER=""
-for fm in org.gnome.Nautilus.desktop thunar.desktop pcmanfm.desktop org.kde.dolphin.desktop; do
+for fm in org.kde.dolphin.desktop org.gnome.Nautilus.desktop thunar.desktop pcmanfm.desktop; do
     if [[ -f "/usr/share/applications/${fm}" ]] || [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/${fm}" ]]; then
         FILE_MANAGER="$fm"
         break
