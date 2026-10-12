@@ -322,45 +322,76 @@ ensure_user_inir_service_enabled() {
     INIR_SERVICE_WIRING_CHANGED=0
     has_usable_systemd_user_manager || return 1
 
-    local installed_strategy service_path
+    local installed_strategy
     installed_strategy="$(get_installed_update_strategy 2>/dev/null || true)"
-    service_path="${XDG_CONFIG_HOME}/systemd/user/inir.service"
-    inir_user_service_is_masked && return 2
 
+    # Handle inir.service (Niri)
+    local niri_service_path="${XDG_CONFIG_HOME}/systemd/user/inir.service"
     if [[ "$installed_strategy" == "package-manager" ]]; then
         systemctl --user daemon-reload >/dev/null 2>&1 || true
-        service_path="$(systemctl --user show -p FragmentPath --value inir.service 2>/dev/null || true)"
+        niri_service_path="$(systemctl --user show -p FragmentPath --value inir.service 2>/dev/null || true)"
     fi
 
-    [[ -f "$service_path" ]] || return 1
-    systemctl --user cat niri.service &>/dev/null || return 1
+    if [[ -f "$niri_service_path" ]] && ! inir_user_service_is_masked; then
+        if systemctl --user cat niri.service &>/dev/null; then
+            local systemd_user_dir="${XDG_CONFIG_HOME}/systemd/user"
+            local correct_wants_dir="${systemd_user_dir}/niri.service.wants"
+            local wants_dir link
+            for wants_dir in "$systemd_user_dir"/*.wants; do
+                [[ -d "$wants_dir" ]] || continue
+                link="$wants_dir/inir.service"
+                [[ -e "$link" || -L "$link" ]] || continue
+                [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]] && continue
+                rm -f "$link" || return 1
+                INIR_SERVICE_WIRING_CHANGED=1
+            done
+            mkdir -p "$correct_wants_dir" || return 1
+            link="$correct_wants_dir/inir.service"
+            local service_real link_real
+            service_real="$(readlink -f "$niri_service_path" 2>/dev/null || printf '%s' "$niri_service_path")"
+            link_real="$(readlink -f "$link" 2>/dev/null || true)"
+            if [[ ! -L "$link" || "$link_real" != "$service_real" ]]; then
+                ln -sf "$niri_service_path" "$link" || return 1
+                INIR_SERVICE_WIRING_CHANGED=1
+            fi
+        fi
+    fi
 
-    local systemd_user_dir="${XDG_CONFIG_HOME}/systemd/user"
-    local correct_wants_dir="${systemd_user_dir}/niri.service.wants"
-    local wants_dir link
-    for wants_dir in "$systemd_user_dir"/*.wants; do
-        [[ -d "$wants_dir" ]] || continue
-        link="$wants_dir/inir.service"
-        [[ -e "$link" || -L "$link" ]] || continue
-        [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]] && continue
-        rm -f "$link" || return 1
-        INIR_SERVICE_WIRING_CHANGED=1
-    done
+    # Handle inir-hyprland.service (Hyprland)
+    local hypr_service_path="${XDG_CONFIG_HOME}/systemd/user/inir-hyprland.service"
+    if [[ "$installed_strategy" == "package-manager" ]]; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        hypr_service_path="$(systemctl --user show -p FragmentPath --value inir-hyprland.service 2>/dev/null || true)"
+    fi
 
-    mkdir -p "$correct_wants_dir" || return 1
-    link="$correct_wants_dir/inir.service"
-    local service_real link_real
-    service_real="$(readlink -f "$service_path" 2>/dev/null || printf '%s' "$service_path")"
-    link_real="$(readlink -f "$link" 2>/dev/null || true)"
-    if [[ ! -L "$link" || "$link_real" != "$service_real" ]]; then
-        ln -sf "$service_path" "$link" || return 1
-        INIR_SERVICE_WIRING_CHANGED=1
+    if [[ -f "$hypr_service_path" ]] && ! inir_user_service_is_masked; then
+        # Hyprland service uses graphical-session.target
+        local systemd_user_dir="${XDG_CONFIG_HOME}/systemd/user"
+        local correct_wants_dir="${systemd_user_dir}/graphical-session.target.wants"
+        local wants_dir link
+        for wants_dir in "$systemd_user_dir"/*.wants; do
+            [[ -d "$wants_dir" ]] || continue
+            link="$wants_dir/inir-hyprland.service"
+            [[ -e "$link" || -L "$link" ]] || continue
+            [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]] && continue
+            rm -f "$link" || return 1
+            INIR_SERVICE_WIRING_CHANGED=1
+        done
+        mkdir -p "$correct_wants_dir" || return 1
+        link="$correct_wants_dir/inir-hyprland.service"
+        local service_real link_real
+        service_real="$(readlink -f "$hypr_service_path" 2>/dev/null || printf '%s' "$hypr_service_path")"
+        link_real="$(readlink -f "$link" 2>/dev/null || true)"
+        if [[ ! -L "$link" || "$link_real" != "$service_real" ]]; then
+            ln -sf "$hypr_service_path" "$link" || return 1
+            INIR_SERVICE_WIRING_CHANGED=1
+        fi
     fi
 
     if [[ "$INIR_SERVICE_WIRING_CHANGED" -gt 0 ]]; then
         systemctl --user daemon-reload >/dev/null 2>&1 || return 1
     fi
-    [[ -e "$link" || -L "$link" ]]
+    return 0
 }
 
 repair_update_owned_state() {
