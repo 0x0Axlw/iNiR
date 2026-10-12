@@ -335,7 +335,28 @@ case "${SKIP_HYPR}" in
       HYPR_CONFIG="${HYPR_TARGET}/hyprland.lua"
 
       if [[ -f "$HYPR_CONFIG" ]]; then
-        log_success "Preserving existing Hyprland config"
+        if [[ -f "${HYPR_TARGET}/.inir-manifest" ]]; then
+          # iNiR-owned tree (installed by a previous run): reconcile it so
+          # updates deliver session-bootstrap and module changes. Files
+          # outside the manifest (user additions, custom/) are preserved by
+          # the sync contract.
+          log_info "Reconciling iNiR-managed Hyprland config..."
+          if [[ "${IS_UPDATE}" == "true" ]]; then
+            create_update_backup "$HYPR_TARGET" >/dev/null
+          fi
+          install_dir__sync "$HYPR_SOURCE" "$HYPR_TARGET" || return 1
+          generate_manifest "$HYPR_SOURCE" "${HYPR_TARGET}/.inir-manifest.new" || return 1
+          mv "${HYPR_TARGET}/.inir-manifest.new" "${HYPR_TARGET}/.inir-manifest"
+          if [[ "${IS_UPDATE}" == "true" ]]; then
+            cleanup_orphans "$HYPR_TARGET" "${HYPR_TARGET}/.inir-manifest" || return 1
+          fi
+          log_success "Hyprland config updated (iNiR-managed)"
+        else
+          # No manifest: the config predates iNiR's Hyprland support or is
+          # user-owned — never overwritten (migration 045 handles iNiR-owned
+          # trees during 'setup update').
+          log_success "Preserving existing Hyprland config"
+        fi
       elif [[ -d "${HYPR_TARGET}" ]]; then
         # An existing hypr/ dir without hyprland.lua is a manual or legacy
         # (hyprlang) setup — never sync --delete over it.
@@ -350,12 +371,12 @@ case "${SKIP_HYPR}" in
           create_update_backup "$HYPR_TARGET" >/dev/null
         fi
 
-        # Generate manifest BEFORE syncing (to know what should exist)
-        log_info "Generating Hyprland file manifest..."
-        generate_manifest "$HYPR_SOURCE" "${HYPR_TARGET}/.inir-manifest.new" || return 1
-
-        # Sync Hyprland config with manifest tracking
+        # Sync first, then write the manifest: install_dir__sync runs rsync
+        # --delete, which would remove a manifest generated before it. The
+        # manifest is repo-derived, so generating it after the sync is
+        # equivalent and survives the deletion.
         install_dir__sync "$HYPR_SOURCE" "$HYPR_TARGET" || return 1
+        generate_manifest "$HYPR_SOURCE" "${HYPR_TARGET}/.inir-manifest.new" || return 1
 
         # Finalize manifest
         mv "${HYPR_TARGET}/.inir-manifest.new" "${HYPR_TARGET}/.inir-manifest"
@@ -402,18 +423,15 @@ case "${SKIP_HYPR}" in
           # bootstrap in defaults/hypr/inir/autostart.lua, which publishes the
           # Wayland session environment first — NOT by graphical-session.target
           # (RefuseManualStart=yes; never active on plain Hyprland sessions).
-          local hypr_launcher="${XDG_BIN_HOME:-$HOME/.local/bin}/inir"
-          local hypr_tmp="${XDG_CACHE_HOME:-$HOME/.cache}/inir-hyprland.service.$$"
-          sed -e "s|^ExecStart=.*|ExecStart=${hypr_launcher//&/\\&} run --session|" \
-              -e "s|^ExecStopPost=-.*|ExecStopPost=-${hypr_launcher//&/\\&} cleanup-orphans|" \
-              "$hypr_service_asset" > "$hypr_tmp"
-          if [[ ! -f "$hypr_service_target" ]] || ! cmp -s "$hypr_tmp" "$hypr_service_target"; then
-            cp -f "$hypr_tmp" "$hypr_service_target"
-            log_success "User inir-hyprland.service installed"
-          else
-            log_success "User inir-hyprland.service current"
+          sync_user_inir_hyprland_service_from_repo_if_present
+          _hypr_sync_rc=$?
+          if [[ $_hypr_sync_rc -eq 0 ]]; then
+            [[ "${INIR_HYPR_SERVICE_SYNC_CHANGED:-0}" -gt 0 ]] \
+              && log_success "User inir-hyprland.service installed" \
+              || log_success "User inir-hyprland.service current"
+          elif [[ $_hypr_sync_rc -eq 2 ]]; then
+            log_warning "inir-hyprland.service is masked; leaving it unchanged"
           fi
-          rm -f "$hypr_tmp"
         fi
 
         if [[ -f "$hypr_service_target" ]]; then

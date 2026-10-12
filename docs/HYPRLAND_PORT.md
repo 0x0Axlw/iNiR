@@ -154,7 +154,19 @@ The single authoritative iNiR launch path under Hyprland:
 Regression coverage: `scripts/test-hyprland-session-startup.sh` (30 checks —
 bootstrap contract, mocked end-to-end ordering, real `ExecStartPre` guard
 behavior, installer deployment, stale-link cleanup), wired into
-`scripts/test-local-distribution.sh` as the "hyprland session startup" step.
+`scripts/test-local-distribution.sh` as the "hyprland session startup" step,
+plus the suite-wide "qmldir singleton registration consistency" invariant.
+
+**Update-path delivery for existing installs**: `./setup update` never ran
+the Hyprland installer stage, and the installer's preserve-gate kept any
+pre-existing `~/.config/hypr` untouched — so existing installs never
+received the bootstrap. Two mechanisms close this: (1) `3.files.sh`
+reconciles a tree that carries `.inir-manifest` (iNiR-owned) instead of
+blanket-preserving it, and the manifest is generated *after* the `--delete`
+sync (it was previously deleted by the sync itself, so fresh installs
+silently ended up without one); (2) migration `045-hyprland-session-bootstrap`
+performs the same reconcile during `./setup update`. User-owned Hyprland
+configs (no manifest) are never overwritten.
 
 ## Remaining work (next phases)
 

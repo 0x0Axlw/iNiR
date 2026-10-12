@@ -318,6 +318,39 @@ EOF
     return 0
 }
 
+sync_user_inir_hyprland_service_from_repo_if_present() {
+    # Deploy assets/systemd/inir-hyprland.service with the launcher path
+    # resolved (same contract as sync_user_inir_service_from_repo_if_present
+    # for inir.service). Called on install (3.files.sh) and on update so
+    # existing installs receive unit changes (guards, launcher path).
+    INIR_HYPR_SERVICE_SYNC_CHANGED=0
+    local hypr_service_asset="${REPO_ROOT}/assets/systemd/inir-hyprland.service"
+    local hypr_service_target="${XDG_CONFIG_HOME}/systemd/user/inir-hyprland.service"
+    local launcher_target="${XDG_BIN_HOME}/inir"
+    local tmp_file
+
+    [[ -f "$hypr_service_asset" ]] || return 1
+    inir_user_service_is_masked && return 2
+
+    mkdir -p "${XDG_CONFIG_HOME}/systemd/user"
+    mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
+    tmp_file="${XDG_CACHE_HOME:-$HOME/.cache}/inir-hyprland.service.$$"
+    sed -e "s|^ExecStart=.*|ExecStart=${launcher_target//&/\\&} run --session|" \
+        -e "s|^ExecStopPost=-.*|ExecStopPost=-${launcher_target//&/\\&} cleanup-orphans|" \
+        "$hypr_service_asset" > "$tmp_file"
+
+    if [[ ! -f "$hypr_service_target" ]] || ! cmp -s "$tmp_file" "$hypr_service_target"; then
+        cp -f "$tmp_file" "$hypr_service_target"
+        INIR_HYPR_SERVICE_SYNC_CHANGED=1
+        if has_usable_systemd_user_manager; then
+            systemctl --user daemon-reload >/dev/null 2>&1 || true
+        fi
+    fi
+    rm -f "$tmp_file"
+
+    return 0
+}
+
 ensure_user_inir_service_enabled() {
     INIR_SERVICE_WIRING_CHANGED=0
     has_usable_systemd_user_manager || return 1
@@ -2837,6 +2870,14 @@ run_update() {
             fi
             if [[ $_service_refresh_status -eq 0 && "${INIR_SERVICE_SYNC_CHANGED:-0}" -gt 0 ]]; then
                 tui_success "Updated existing user inir.service"
+            fi
+
+            # Hyprland unit refresh: 'setup update' must deliver unit changes
+            # (guards, launcher path) to existing installs, same contract as
+            # inir.service above.
+            if sync_user_inir_hyprland_service_from_repo_if_present; then
+                [[ "${INIR_HYPR_SERVICE_SYNC_CHANGED:-0}" -gt 0 ]] \
+                    && tui_success "Updated existing user inir-hyprland.service"
             fi
 
             if ensure_user_inir_service_enabled; then

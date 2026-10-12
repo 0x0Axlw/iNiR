@@ -4341,6 +4341,41 @@ if command -v python3 &>/dev/null && [[ -f "$runtime_root/scripts/lib/generate-i
     step "QML parses on Qt 6.10 and older"
     python3 "$runtime_root/scripts/test-qml-qt-compat.py"
 
+    # Singleton registration invariant: a qmldir 'singleton X ... X.qml' entry
+    # requires 'pragma Singleton' in X.qml, and a file carrying the pragma
+    # must be registered with the keyword. A mismatch aborts the whole module
+    # import chain (HyprlandService) or silently resolves the type object
+    # instead of the instance (HyprlandData) — both observed live.
+    step "qmldir singleton registration consistency"
+    python3 - "$runtime_root" <<'PY'
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(sys.argv[1])
+failures = []
+for qmldir in sorted(root.glob("**/qmldir")):
+    for line in qmldir.read_text().splitlines():
+        parts = line.split()
+        if len(parts) != 4 or not parts[-1].endswith(".qml"):
+            continue
+        keyword, name, _version, file_name = parts
+        target = qmldir.parent / file_name
+        if not target.exists():
+            continue
+        # Pragmas may appear in any order at the top of the file.
+        has_pragma = re.search(r"(?m)^\s*pragma Singleton\b", target.read_text()) is not None
+        is_singleton = keyword == "singleton"
+        if is_singleton and not has_pragma:
+            failures.append(f"{qmldir}: '{name}' declared singleton but {file_name} lacks 'pragma Singleton'")
+        if not is_singleton and has_pragma:
+            failures.append(f"{qmldir}: {file_name} has 'pragma Singleton' but is not registered as singleton")
+if failures:
+    print("\n".join(failures), file=sys.stderr)
+    sys.exit(1)
+print("qmldir singleton registration: consistent")
+PY
+
     step "QML components that parse and fail to load"
     python3 "$runtime_root/scripts/test-qml-pitfalls.py"
 

@@ -92,12 +92,15 @@ check "Niri inir.service keeps its niri.service coupling (unchanged)" niri_unit_
 # Static contract: installer actually deploys the unit and the wiring function
 # cleans stale wants links instead of creating dead ones.
 #####################################################################################
-check "3.files.sh copies the unit into the user systemd directory" \
-    grep -qF 'cp -f "$hypr_tmp" "$hypr_service_target"' "$files_installer"
-check "3.files.sh resolves the launcher path in the deployed unit" \
-    grep -qF 'ExecStart=' "$files_installer" && grep -Fq 'hypr_launcher' "$files_installer"
-check "3.files.sh reloads the user manager after deploying the unit" \
-    grep -qF 'systemctl --user daemon-reload' "$files_installer"
+check "3.files.sh deploys the unit via the shared sync function" \
+    grep -qF 'sync_user_inir_hyprland_service_from_repo_if_present' "$files_installer"
+setup_hypr_sync="$(sed -n '/^sync_user_inir_hyprland_service_from_repo_if_present()/,/^}/p' "$setup_script")"
+check "setup's hyprland sync copies the unit with the launcher path resolved" \
+    grep -qF 'cp -f "$tmp_file" "$hypr_service_target"' <<<"$setup_hypr_sync" \
+    && grep -qF 'ExecStart=' <<<"$setup_hypr_sync" \
+    && grep -qF 'launcher_target' <<<"$setup_hypr_sync"
+check "setup's hyprland sync reloads the user manager when changed" \
+    grep -qF 'systemctl --user daemon-reload' <<<"$setup_hypr_sync"
 service_wiring_function="$(sed -n '/^ensure_user_inir_service_enabled() {/,/^}/p' "$setup_script")"
 check "ensure_user_inir_service_enabled removes stale inir-hyprland wants links" \
     grep -qF 'link="$wants_dir/inir-hyprland.service"' <<<"$service_wiring_function"
