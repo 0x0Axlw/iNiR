@@ -73,6 +73,29 @@ migration_apply() {
     # by the sync bookkeeping; set a fallback for direct invocation contexts.
     export INSTALLED_LISTFILE="${INSTALLED_LISTFILE:-${XDG_CONFIG_HOME:-$HOME/.config}/inir-installed.listfile}"
 
+    # Preserve user modifications before the sync lands. The tree is
+    # iNiR-owned, but users may have edited manifest-tracked files directly;
+    # the blessed extension point is custom/overrides.lua — these backups
+    # keep that migration path lossless.
+    local file rel deployed backup_name
+    while IFS= read -r file; do
+        rel="${file#"$repo_root/defaults/hypr/"}"
+        [[ -n "$rel" ]] || continue
+        deployed="$hypr_target/$rel"
+        if [[ -f "$deployed" ]] && ! cmp -s "$deployed" "$file"; then
+            backup_name="${rel//\//_}"
+            create_backup "$deployed" "$backup_name" >/dev/null || true
+        fi
+    done < <(find "$repo_root/defaults/hypr" -type f ! -name ".inir-manifest*" 2>/dev/null)
+    while IFS= read -r rel; do
+        case "$rel" in "#"*) continue ;; esac
+        [[ -n "$rel" ]] || continue
+        if [[ -f "$hypr_target/$rel" && ! -f "$repo_root/defaults/hypr/$rel" ]]; then
+            backup_name="${rel//\//_}"
+            create_backup "$hypr_target/$rel" "$backup_name" >/dev/null || true
+        fi
+    done < <(tail -n +4 "$hypr_target/.inir-manifest" 2>/dev/null)
+
     # Sync first, then write the manifest: install_dir__sync runs rsync
     # --delete, which would remove a manifest generated before it.
     install_dir__sync "$repo_root/defaults/hypr" "$hypr_target" || return 1
