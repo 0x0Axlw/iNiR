@@ -986,6 +986,18 @@ if ! bash "$runtime_root/scripts/test-hyprland-session-startup.sh"; then
     exit 1
 fi
 
+# Hyprland Settings backend: blur read/write/persistence, active keybind
+# model, QML routing contract. All hyprctl interactions mocked.
+step "hyprland settings adapter"
+if [[ ! -f "$runtime_root/scripts/test-hyprland-settings.sh" ]]; then
+    printf 'FAIL: missing scripts/test-hyprland-settings.sh\n' >&2
+    exit 1
+fi
+if ! bash "$runtime_root/scripts/test-hyprland-settings.sh"; then
+    printf 'FAIL: Hyprland settings adapter regression tests failed\n' >&2
+    exit 1
+fi
+
 fedora_installer="$runtime_root/sdata/dist-fedora/install-deps.sh"
 if ! grep -Fq 'fedora_quickshell_compatible' "$fedora_installer" \
         || ! grep -Fq 'FEDORA_REPO_PKGS=' "$fedora_installer" \
