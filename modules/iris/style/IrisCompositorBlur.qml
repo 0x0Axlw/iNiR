@@ -4,6 +4,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import qs.services
 
 Singleton {
@@ -16,6 +17,18 @@ Singleton {
     property real saturation: 1.5
     property var elsewhere: []
     readonly property bool usable: root.available && root.enabled
+
+    // Stay synchronized with changes made outside the Settings app: any
+    // config reload (file save, hyprctl reload, another tool) re-reads the
+    // compositor's actual blur state.
+    Connections {
+        target: CompositorService.isHyprland || CompositorService.isNiri ? Hyprland : null
+        enabled: CompositorService.isHyprland || CompositorService.isNiri
+
+        function onRawEvent(event) {
+            if (event.name === "configreloaded") root.reload()
+        }
+    }
 
     function reload(): void {
         if (root.reader.running) return
