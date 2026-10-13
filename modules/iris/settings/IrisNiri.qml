@@ -12,7 +12,11 @@ Singleton {
     id: root
 
     readonly property string script: Quickshell.shellPath("scripts/niri-config.py")
-    readonly property bool available: CompositorService.isNiri
+    readonly property string hyprlandScript: Quickshell.shellPath("scripts/hyprland-config.py")
+    // The blur section has a verified Hyprland backend (scripts/hyprland-config.py);
+    // the remaining niri sections are Niri-only until their adapters land.
+    readonly property var hyprlandPortedSections: ["blur"]
+    readonly property bool available: CompositorService.isNiri || CompositorService.isHyprland
     property int revision: 0
     property var data: ({ input: {}, layout: {}, animations: {}, "window-rules": {} })
     property var outputs: []
@@ -29,8 +33,14 @@ Singleton {
 
     function ensure(): void {
         if (!root.available) return
-        root.reload(["input", "layout", "animations", "window-rules", "outputs", "cursors"])
-        if (!devices.running) devices.running = true
+        if (CompositorService.isNiri) {
+            root.reload(["input", "layout", "animations", "window-rules", "outputs", "cursors"])
+            if (!devices.running) devices.running = true
+        } else if (CompositorService.isHyprland) {
+            // Only the ported sections have a Hyprland backend; blur state is
+            // read from the compositor (hyprland-config.py get-blur).
+            IrisCompositorBlur.reload()
+        }
     }
     function reload(parts: var): void {
         for (const part of parts) {
@@ -74,7 +84,17 @@ Singleton {
         const item = root.queue[0]
         root.queue = root.queue.slice(1)
         writer.section = item.section
-        writer.command = ["python3", root.script, "set", item.section, item.key, item.value]
+        if (CompositorService.isHyprland) {
+            if (!root.hyprlandPortedSections.includes(item.section)) {
+                root.error = item.section + " settings are not available on Hyprland yet"
+                root.next()
+                return
+            }
+            // Same CLI contract as `niri-config.py set <section> <key> <value>`.
+            writer.command = ["python3", root.hyprlandScript, "set", item.section, item.key, item.value]
+        } else {
+            writer.command = ["python3", root.script, "set", item.section, item.key, item.value]
+        }
         writer.running = true
     }
     function parse(text: string, onValue: var): void {

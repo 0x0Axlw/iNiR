@@ -293,7 +293,7 @@ QtObject {
         { target: "material", group: "Glass", label: "Glass", description: "Glass blurs the wallpaper. Blur has Niri blur the windows behind (Niri 26.04).", path: "iris.appearance.glass.mode", kind: "choice", fallback: "off", choices: [{label:"Off",value:"off",glyph:"crop_square"},{label:"Glass",value:"wallpaper",glyph:"blur_on"},{label:"Blur (beta)",value:"compositor",glyph:"lens_blur"}] , note: () => root.glassNote() },
         { target: "material", group: "Glass", label: "Tint", showIf: () => IrisStyle.glassy, description: "How much material covers the glass. It rises on bright wallpapers to keep text readable.", path: "iris.appearance.glass.tint", kind: "range", fallback: 58, min: 12, max: 96, step: 2, unit: " %" },
         { target: "material", group: "Glass", label: "Frost", description: "How blurred the wallpaper is behind the glass, on iRiS and on glass widgets.", path: "iris.appearance.glass.blur", showIf: () => IrisStyle.glassWallpaper || root.widgetGlass, kind: "range", fallback: 100, min: 20, max: 100, step: 5, unit: " %" },
-        { target: "material", group: "Glass", niri: "blur", key: "enabled", label: "Niri blur", description: "Blur asks Niri to blur what is behind iRiS. Off here turns it off for every app.", visibleWhen: "iris.appearance.glass.mode=compositor", showIf: () => IrisCompositorBlur.available, kind: "switch", fallback: true, keywords: ["niri", "blur", "compositor", "desenfoque"] },
+        { target: "material", group: "Glass", niri: "blur", key: "enabled", label: "Compositor blur", description: "Blur asks the compositor to blur what is behind iRiS. Off here turns it off for every app.", visibleWhen: "iris.appearance.glass.mode=compositor", showIf: () => IrisCompositorBlur.available, kind: "switch", fallback: true, keywords: ["niri", "blur", "compositor", "desenfoque"] },
         { target: "material", group: "Glass", niri: "blur", key: "strength", label: "Blur strength", visibleWhen: "iris.appearance.glass.mode=compositor", showIf: () => IrisCompositorBlur.usable, kind: "choice", fallback: "balanced", choices: [{label:"Light",value:"light"},{label:"Balanced",value:"balanced"},{label:"Strong",value:"strong"}], keywords: ["niri", "blur", "radius", "passes"] },
         { target: "material", group: "Glass", niri: "blur", key: "saturation", label: "Colour behind", description: "Above 1 makes what is blurred more vivid.", visibleWhen: "iris.appearance.glass.mode=compositor", showIf: () => IrisCompositorBlur.usable, kind: "range", fallback: 1.5, min: 0.5, max: 2.5, step: 0.1, unit: "×", keywords: ["saturation", "vibrancy"] },
         { target: "material", group: "Glass", niri: "blur", key: "noise", label: "Grain", description: "A little noise hides banding in soft gradients.", visibleWhen: "iris.appearance.glass.mode=compositor", showIf: () => IrisCompositorBlur.usable, kind: "range", fallback: 0.02, min: 0, max: 0.1, step: 0.01, scale: 100, unit: " %", keywords: ["noise", "grain", "banding"] },
@@ -951,6 +951,20 @@ QtObject {
         { label: "Gray", value: String(IrisStyle.identity.gray), get swatch() { return IrisStyle.identity.gray } }
     ]
     // Niri's own settings, read and written through scripts/niri-config.py (IrisNiri). `niri` is the config section.
+    // Compositor gating for the Niri-backed rows. Niri shows everything; on
+    // Hyprland only the ported sections (blur — via scripts/hyprland-config.py)
+    // plus config-based rows are offered, so settings that would silently
+    // write a niri config never appear.
+    function niriRowAvailable(spec: var): bool {
+        if (CompositorService.isNiri) return true
+        if (!spec.niri && spec.kind !== "niriMotion") return true
+        if (!CompositorService.isHyprland) return false
+        if (spec.kind === "niriMotion") return false
+        if (spec.niri === "blur") return true
+        if (spec.niri === "window-rules") return spec.key === "blur"
+        return false
+    }
+
     readonly property var niriRows: [
         { section: "windows", group: "Layout", niri: "layout", key: "gaps", label: "Gaps", description: "Space around and between windows.", kind: "range", fallback: 16, min: 0, max: 48, unit: " px", keywords: ["niri", "gaps", "spacing", "padding"] },
         { section: "windows", group: "Layout", niri: "layout", key: "center-focused-column", read: "center_focused", label: "Centre the focused column", summary: false, kind: "choice", fallback: "never", choices: [{label:"Never",value:"never"},{label:"When it overflows",value:"on-overflow"},{label:"Always",value:"always"}], keywords: ["niri", "center", "centre", "column"] },
@@ -973,10 +987,10 @@ QtObject {
         { section: "windows", group: "Shape", niri: "layout", key: "shadow.spread", label: "Spread", showIf: () => IrisNiri.value({ niri: "layout", key: "shadow.enabled" }) === true, kind: "range", fallback: 5, min: 0, max: 40, unit: " px" },
         { section: "windows", group: "Glass behind apps", niri: "window-rules", key: "active-opacity", label: "Window in focus", description: "Blur only shows through a window that is not fully opaque.", kind: "range", fallback: 1, min: 0.5, max: 1, step: 0.05, scale: 100, unit: " %", keywords: ["niri", "opacity", "transparent", "transparency", "focused", "active", "opacidad"] },
         { section: "windows", group: "Glass behind apps", niri: "window-rules", key: "inactive-opacity", label: "Windows out of focus", description: "How opaque the windows you are not using stay.", kind: "range", fallback: 1, min: 0.5, max: 1, step: 0.05, scale: 100, unit: " %", keywords: ["niri", "opacity", "transparent", "inactive", "background", "unfocused", "opacidad"] },
-        { section: "windows", group: "Glass behind apps", niri: "window-rules", key: "blur", label: "Blur behind apps", description: "Niri blurs what is behind every window that lets it through.", showIf: () => IrisCompositorBlur.available, kind: "switch", fallback: false, keywords: ["niri", "blur", "glass", "frosted", "transparent", "apps", "windows", "desenfoque"] },
+        { section: "windows", group: "Glass behind apps", niri: "window-rules", key: "blur", label: "Blur behind apps", description: "The compositor blurs what is behind every window that lets it through.", showIf: () => IrisCompositorBlur.available, kind: "switch", fallback: false, keywords: ["niri", "blur", "glass", "frosted", "transparent", "apps", "windows", "desenfoque"] },
         { section: "windows", group: "Glass behind apps", niri: "window-rules", key: "xray", label: "Blur shows", description: "The wallpaper is blurred once and costs almost nothing; everything behind follows other windows and costs more.", showIf: () => IrisNiri.value({ niri: "window-rules", key: "blur" }) === true, kind: "choice", fallback: true, choices: [{label:"The wallpaper",value:true,glyph:"wallpaper"},{label:"Everything behind",value:false,glyph:"layers"}], keywords: ["niri", "xray", "blur", "windows behind"] },
         { section: "windows", group: "Glass behind apps", niri: "window-rules", key: "border-behind", label: "Keep borders out of the glass", description: "Stops the border and focus ring from showing through a see-through window.", showIf: () => IrisNiri.value({ niri: "window-rules", key: "blur" }) === true, kind: "switch", fallback: false, keywords: ["niri", "border", "focus ring", "draw-border-with-background"] },
-        { section: "windows", group: "Glass behind apps", niri: "blur", key: "enabled", label: "Niri blur", description: "Off turns blur off everywhere, iRiS included.", showIf: () => IrisNiri.value({ niri: "window-rules", key: "blur" }) === true && IrisCompositorBlur.available, kind: "switch", fallback: true, keywords: ["niri", "blur"] },
+        { section: "windows", group: "Glass behind apps", niri: "blur", key: "enabled", label: "Compositor blur", description: "Off turns blur off everywhere, iRiS included.", showIf: () => IrisNiri.value({ niri: "window-rules", key: "blur" }) === true && IrisCompositorBlur.available, kind: "switch", fallback: true, keywords: ["niri", "blur"] },
         { section: "windows", group: "Glass behind apps", niri: "blur", key: "strength", label: "Blur strength", showIf: () => IrisNiri.value({ niri: "window-rules", key: "blur" }) === true && IrisCompositorBlur.usable, kind: "choice", fallback: "balanced", choices: [{label:"Light",value:"light"},{label:"Balanced",value:"balanced"},{label:"Strong",value:"strong"}], keywords: ["niri", "blur", "strength", "radius"] },
         { section: "windows", group: "Glass behind apps", niri: "blur", key: "saturation", label: "Colour behind", description: "Above 1 makes what is blurred more vivid.", showIf: () => IrisNiri.value({ niri: "window-rules", key: "blur" }) === true && IrisCompositorBlur.usable, kind: "range", fallback: 1.5, min: 0.5, max: 2.5, step: 0.1, unit: "×", keywords: ["niri", "saturation", "vibrancy"] },
         { section: "windows", group: "Glass behind apps", niri: "blur", key: "noise", label: "Grain", description: "A little noise hides banding in soft gradients.", showIf: () => IrisNiri.value({ niri: "window-rules", key: "blur" }) === true && IrisCompositorBlur.usable, kind: "range", fallback: 0.02, min: 0, max: 0.1, step: 0.01, scale: 100, unit: " %", keywords: ["niri", "noise", "grain"] },
@@ -1379,7 +1393,7 @@ QtObject {
         return move && move.groups.indexOf(String(spec.group ?? "")) >= 0 ? Object.assign({}, spec, { section: move.to }) : spec
     }
     readonly property var settings: {
-        const rows = root.behaviour.concat(root.shared).concat(root.niriRows).map(spec => root.placed(spec))
+        const rows = root.behaviour.concat(root.shared).concat(root.niriRows.filter(spec => root.niriRowAvailable(spec))).map(spec => root.placed(spec))
         const known = new Set(rows.map(spec => spec.path))
         const look = []
         for (const spec of root.studio) {

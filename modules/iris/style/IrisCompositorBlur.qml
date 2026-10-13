@@ -18,13 +18,22 @@ Singleton {
     readonly property bool usable: root.available && root.enabled
 
     function reload(): void {
-        if (CompositorService.isNiri && !reader.running) reader.running = true
+        if (root.reader.running) return
+        if (CompositorService.isNiri) {
+            root.reader.command = ["python3", Quickshell.shellPath("scripts/niri-config.py"), "get-blur"]
+            root.reader.running = true
+        } else if (CompositorService.isHyprland) {
+            // Same JSON shape (scripts/hyprland-config.py get-blur): reads
+            // decoration:blur:* via `hyprctl getoption -j` — runtime truth.
+            root.reader.command = ["python3", Quickshell.shellPath("scripts/hyprland-config.py"), "get-blur"]
+            root.reader.running = true
+        }
     }
     Component.onCompleted: root.reload()
 
     Process {
         id: reader
-        command: ["python3", Quickshell.shellPath("scripts/niri-config.py"), "get-blur"]
+        command: []
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
