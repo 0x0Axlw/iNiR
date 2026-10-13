@@ -172,13 +172,26 @@ configs (no manifest) are never overwritten.
 
 - **Shell adapters**: `services/HyprlandService.qml` equivalents of
   `NiriService` (window/workspace IPC via `hyprctl -j`), keybind ingestion
-  (`HyprlandKeybinds.qml` still parses hyprlang-era paths), overview/window
-  chips, and the Settings UI toggles that today write niri config.
-- **Runtime blur toggle**: niri's `background-effect` window blur is toggled
-  from Settings via `scripts/niri-config.py`; a Hyprland adapter must write
-  `decoration.blur.enabled` the equivalent way. Until then, layer blur for iRiS
-  surfaces (`inir/layer_rules.lua`) stays commented so it is never applied
-  unconditionally.
+  (display is ported via `hyprland-config.py get-binds`; the keybind
+  *editor* — writing Lua bind lines — is still Niri-only), overview/window
+  chips, and the remaining Settings UI toggles that today write niri config.
+- **Settings: ported on Hyprland** (this phase): the compositor blur toggle
+  with strength/grain/vibrancy (runtime `hyprctl eval hl.config(...)` +
+  generated `custom/settings.lua` persistence, both verified on 0.56.2),
+  keybind display/cheatsheet from active binds, and compositor-aware row
+  gating in the iRiS settings (unported Niri sections are hidden rather
+  than silently writing niri config).
+- **Settings: still Niri-only** (hidden on Hyprland with truthful gating):
+  the layout/borders/shape/input/animation-preset editors (the ii-family
+  Compositor page, the Monitors layout editor, Autostart, the Alt-Tab
+  source picker). Each needs a Hyprland settings backend writing the
+  corresponding Lua config sections.
+- **Runtime blur**: DONE for the global blur —
+  `scripts/hyprland-config.py set blur …` writes `decoration.blur.*`
+  (runtime eval + persistent `custom/settings.lua`). The niri
+  `background-effect` *window-rule* semantics (xray, border-behind, per-app
+  opacity) have no direct Hyprland equivalent and remain Niri-only;
+  `inir/layer_rules.lua` layer blur stays commented pending that adapter.
 - **`inir service enable` CLI** is still Niri-scoped
   (`detect_compositor_service` in `scripts/inir` returns only
   `niri.service`); under Hyprland the install flow wires everything and the
